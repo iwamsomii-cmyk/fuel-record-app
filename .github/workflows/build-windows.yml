@@ -25,6 +25,8 @@ jobs:
 
       - name: Build Windows release
         run: flutter build windows --release
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
       - name: Install Inno Setup
         run: choco install innosetup -y
