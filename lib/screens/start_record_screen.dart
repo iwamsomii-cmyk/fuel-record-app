@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:signature/signature.dart';
 import '../models/fuel_record.dart';
 import '../models/receipt_item.dart';
 import '../services/firestore_service.dart';
 import '../widgets/receipt_item_form.dart';
+import '../widgets/signature_field.dart';
 
-/// Follows the wireframe's 3-part flow for one Fuel Record:
-///  1. Header (prepared by, pump name, meter readings, balances) -> Save
+/// Follows the reorganised flow for one Fuel Record:
+///  1. Header (pump name, date, opening meter reading, opening balance) -> Save
 ///  2. Repeatable Receipt Information rows -> Save each, keep adding
-///  3. Total Quantity Sold + footer prepared-by -> SUBMIT (uploads to Firestore)
+///  3. Total Quantity Sold, Closing Meter Reading, Closing Balance and the
+///     single Prepared By (name + signature) -> SUBMIT (uploads to Firestore)
 class StartRecordScreen extends StatefulWidget {
   const StartRecordScreen({super.key});
 
@@ -17,22 +21,26 @@ class StartRecordScreen extends StatefulWidget {
 
 class _StartRecordScreenState extends State<StartRecordScreen> {
   final _service = FirestoreService.instance;
+  final _df = DateFormat('dd/MM/yyyy');
 
   // Step 1 controllers
   final _headerFormKey = GlobalKey<FormState>();
   final _pumpName = TextEditingController();
-  final _preparedByName = TextEditingController();
-  final _preparedBySignature = TextEditingController();
   final _openingMeter = TextEditingController();
-  final _closingMeter = TextEditingController();
   final _openingBalance = TextEditingController();
-  final _closingBalance = TextEditingController();
+  DateTime _preparedByDate = DateTime.now();
 
   // Step 3 controllers
   final _footerFormKey = GlobalKey<FormState>();
   final _totalQty = TextEditingController();
+  final _closingMeter = TextEditingController();
+  final _closingBalance = TextEditingController();
   final _totalPreparedByName = TextEditingController();
-  final _totalPreparedBySignature = TextEditingController();
+  final _totalPreparedBySignature = SignatureController(
+    penStrokeWidth: 2,
+    penColor: Colors.black,
+    exportBackgroundColor: Colors.white,
+  );
 
   String? _recordId;
   bool _saving = false;
@@ -40,36 +48,44 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
   @override
   void dispose() {
     for (final c in [
-      _pumpName, _preparedByName, _preparedBySignature, _openingMeter,
-      _closingMeter, _openingBalance, _closingBalance, _totalQty,
-      _totalPreparedByName, _totalPreparedBySignature,
+      _pumpName, _openingMeter, _openingBalance,
+      _totalQty, _closingMeter, _closingBalance, _totalPreparedByName,
     ]) {
       c.dispose();
     }
+    _totalPreparedBySignature.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _preparedByDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => _preparedByDate = picked);
+    }
   }
 
   Future<void> _saveHeader() async {
     if (!_headerFormKey.currentState!.validate()) return;
+
     setState(() => _saving = true);
     final record = FuelRecord(
       id: '',
       pumpName: _pumpName.text.trim(),
-      preparedByName: _preparedByName.text.trim(),
-      preparedBySignature: _preparedBySignature.text.trim(),
-      preparedByDate: DateTime.now(), // auto-captured, per wireframe
+      preparedByDate: _preparedByDate,
       openingMeterReading: double.parse(_openingMeter.text.trim()),
-      closingMeterReading: double.parse(_closingMeter.text.trim()),
       openingBalance: _openingBalance.text.trim().isEmpty
           ? null
           : double.tryParse(_openingBalance.text.trim()),
-      closingBalance: _closingBalance.text.trim().isEmpty
-          ? null
-          : double.tryParse(_closingBalance.text.trim()),
       createdAt: DateTime.now(),
     );
     // This write queues locally if offline and syncs automatically later.
     final id = await _service.createRecord(record);
+    if (!mounted) return;
     setState(() {
       _recordId = id;
       _saving = false;
@@ -78,12 +94,23 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
 
   Future<void> _submit() async {
     if (!_footerFormKey.currentState!.validate()) return;
+
+    final sig = await SignatureField.exportBase64(_totalPreparedBySignature);
+    if (sig == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign before submitting.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     final existing = await _service.getRecord(_recordId!);
     final updated = existing!.copyWith(
       totalQuantitySold: double.parse(_totalQty.text.trim()),
+      closingMeterReading: double.parse(_closingMeter.text.trim()),
       totalPreparedByName: _totalPreparedByName.text.trim(),
-      totalPreparedBySignature: _totalPreparedBySignature.text.trim(),
+      totalPreparedBySignature: sig,
       totalPreparedByDate: DateTime.now(),
       timeClosed: DateTime.now(),
     );
@@ -92,7 +119,7 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
     setState(() => _saving = false);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Record submitted / imepandishwa kwa server.')),
+      const SnackBar(content: Text('Record submitted to server.')),
     );
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
@@ -106,38 +133,18 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle('Prepared By'),
+            _sectionTitle('Record Details'),
             Form(
               key: _headerFormKey,
               child: Column(
                 children: [
                   _textField(_pumpName, 'Pump Name', enabled: _recordId == null),
-                  _textField(_preparedByName, 'Name', enabled: _recordId == null),
-                  _textField(_preparedBySignature, 'Signature',
-                      enabled: _recordId == null),
+                  _dateField(enabled: _recordId == null),
                   const SizedBox(height: 8),
-                  Row(children: [
-                    Expanded(
-                      child: _textField(_openingMeter, 'Opening Meter Reading',
-                          number: true, enabled: _recordId == null),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _textField(_closingMeter, 'Closing Meter Reading',
-                          number: true, enabled: _recordId == null),
-                    ),
-                  ]),
-                  Row(children: [
-                    Expanded(
-                      child: _textField(_openingBalance, 'Opening Balance (optional)',
-                          number: true, isRequired: false, enabled: _recordId == null),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _textField(_closingBalance, 'Closing Balance (optional)',
-                          number: true, isRequired: false, enabled: _recordId == null),
-                    ),
-                  ]),
+                  _textField(_openingMeter, 'Opening Meter Reading',
+                      number: true, enabled: _recordId == null),
+                  _textField(_openingBalance, 'Opening Balance (optional)',
+                      number: true, isRequired: false, enabled: _recordId == null),
                   if (_recordId == null) ...[
                     const SizedBox(height: 12),
                     Align(
@@ -166,7 +173,7 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
                   if (items.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.all(8),
-                      child: Text('Hakuna receipt bado. Jaza fomu hapo juu.'),
+                      child: Text('No receipts yet. Fill the form above.'),
                     );
                   }
                   return SingleChildScrollView(
@@ -188,7 +195,7 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
                                 DataCell(Text(i.token)),
                                 DataCell(Text(i.chassisNo)),
                                 DataCell(Text(i.qty.toString())),
-                                DataCell(Text(i.signature)),
+                                DataCell(SignatureField.thumbnail(i.signature)),
                                 DataCell(Text(i.contract)),
                               ]))
                           .toList(),
@@ -203,8 +210,14 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
                 child: Column(
                   children: [
                     _textField(_totalQty, 'Total Quantity Sold', number: true),
+                    _textField(_closingMeter, 'Closing Meter Reading', number: true),
+                    _textField(_closingBalance, 'Closing Balance (optional)',
+                        number: true, isRequired: false),
                     _textField(_totalPreparedByName, 'Prepared By - Name'),
-                    _textField(_totalPreparedBySignature, 'Prepared By - Signature'),
+                    SignatureField(
+                      controller: _totalPreparedBySignature,
+                      label: 'Prepared By - Signature',
+                    ),
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
@@ -228,6 +241,23 @@ class _StartRecordScreenState extends State<StartRecordScreen> {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(text, style: Theme.of(context).textTheme.titleMedium),
       );
+
+  Widget _dateField({bool enabled = true}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        onTap: enabled ? _pickDate : null,
+        child: InputDecorator(
+          decoration: const InputDecoration(
+            labelText: 'Date',
+            border: OutlineInputBorder(),
+            suffixIcon: Icon(Icons.calendar_today, size: 18),
+          ),
+          child: Text(_df.format(_preparedByDate)),
+        ),
+      ),
+    );
+  }
 
   Widget _textField(
     TextEditingController controller,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:signature/signature.dart';
 import '../models/receipt_item.dart';
+import 'signature_field.dart';
 
 /// Inline form for one row of the "Receipt Information" table
 /// (PE, Driver, Token, Chassis No, Qty, Signature, Contract).
@@ -22,19 +24,34 @@ class _ReceiptItemFormState extends State<ReceiptItemForm> {
   final _token = TextEditingController();
   final _chassisNo = TextEditingController();
   final _qty = TextEditingController();
-  final _signature = TextEditingController();
+  final _signature = SignatureController(
+    penStrokeWidth: 2,
+    penColor: Colors.black,
+    exportBackgroundColor: Colors.white,
+  );
   final _contract = TextEditingController();
 
   @override
   void dispose() {
-    for (final c in [_pe, _driver, _token, _chassisNo, _qty, _signature, _contract]) {
+    for (final c in [_pe, _driver, _token, _chassisNo, _qty, _contract]) {
       c.dispose();
     }
+    _signature.dispose();
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final sig = await SignatureField.exportBase64(_signature);
+    if (sig == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign before saving this row.')),
+      );
+      return;
+    }
+
     widget.onSave(ReceiptItem(
       id: '', // Firestore assigns the real id on add()
       pe: _pe.text.trim(),
@@ -42,13 +59,14 @@ class _ReceiptItemFormState extends State<ReceiptItemForm> {
       token: _token.text.trim(),
       chassisNo: _chassisNo.text.trim(),
       qty: double.parse(_qty.text.trim()),
-      signature: _signature.text.trim(),
+      signature: sig,
       contract: _contract.text.trim(),
       createdAt: DateTime.now(),
     ));
-    for (final c in [_pe, _driver, _token, _chassisNo, _qty, _signature, _contract]) {
+    for (final c in [_pe, _driver, _token, _chassisNo, _qty, _contract]) {
       c.clear();
     }
+    _signature.clear();
     setState(() {}); // refresh so the form visually resets
   }
 
@@ -83,7 +101,7 @@ class _ReceiptItemFormState extends State<ReceiptItemForm> {
                 Expanded(child: _field(_contract, 'Contract')),
               ]),
               const SizedBox(height: 8),
-              _field(_signature, 'Signature (type initials)'),
+              SignatureField(controller: _signature, label: 'Signature'),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,

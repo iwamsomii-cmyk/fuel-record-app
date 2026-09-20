@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "431591431239",
+    "project_id": "gpsa-kinondoni",
+    "storage_bucket": "gpsa-kinondoni.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:431591431239:android:8142d55e1cd863d8a82562",
+        "android_client_info": {
+          "package_name": "com.example.fuel_record_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxiqd7z76dH_r1SVCA2DDJwgR3GeYAAKs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

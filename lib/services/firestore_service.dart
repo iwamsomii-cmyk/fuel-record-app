@@ -1,6 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../models/fuel_record.dart';
 import '../models/receipt_item.dart';
+
+/// One receipt item plus the parent fuel record's context, so search
+/// results can show (and be matched against) the pump name, the pump
+/// attendant's name ("Prepared By"), and the record's date - not just
+/// the receipt row's own fields.
+class ReceiptSearchResult {
+  final ReceiptItem item;
+  final String pumpName;
+  final String preparedByName;
+  final DateTime recordDate;
+
+  ReceiptSearchResult({
+    required this.item,
+    required this.pumpName,
+    required this.preparedByName,
+    required this.recordDate,
+  });
+}
 
 /// Single place that talks to Firestore.
 ///
@@ -17,6 +36,7 @@ class FirestoreService {
   static final FirestoreService instance = FirestoreService._internal();
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
 
   CollectionReference<Map<String, dynamic>> get _records =>
       _db.collection('fuelRecords');
@@ -71,32 +91,63 @@ class FirestoreService {
 
   // ---------- Search ----------
   //
-  // The wireframe wants one search box that can match on driver name, PE,
-  // token, contact/contract or chassis number. Firestore doesn't do
-  // cross-field full-text search, so we run one exact-match query per
-  // field in parallel (collectionGroup covers every record's receiptItems
-  // subcollection at once) and merge+dedupe the results client-side. Fine
-  // at this scale (a few pumps, a few hundred rows/day).
-  Future<List<ReceiptItem>> searchReceiptItems(String query) async {
-    final q = query.trim();
+  // One search box matches on driver name, PE, token, contract, chassis
+  // number, pump name, the pump attendant's name ("Prepared By"), or the
+  // record's date. Firestore has no native case-insensitive / partial-text
+  // search, so instead of a `where` query per field (which also needs a
+  // composite index for every field, and silently hangs the UI forever if
+  // that index doesn't exist), we pull every receipt item once and filter
+  // client-side. Fine at this scale (a few pumps, a few hundred rows/day).
+  //
+  // Pump name, attendant name, and date all live on the parent fuel
+  // record, not on the receipt item itself, so we also build a quick
+  // recordId -> FuelRecord lookup to search and display those too.
+  Future<List<ReceiptSearchResult>> searchReceiptItems(String query) async {
+    final q = query.trim().toLowerCase();
     if (q.isEmpty) return [];
 
-    final fields = ['driver', 'pe', 'token', 'chassisNo', 'contract'];
-    final futures = fields.map((field) => _db
-        .collectionGroup('receiptItems')
-        .where(field, isEqualTo: q)
-        .get());
+    final itemsSnap = await _db.collectionGroup('receiptItems').get();
+    final recordsSnap = await _records.get();
 
-    final results = await Future.wait(futures);
-    final seen = <String>{};
-    final merged = <ReceiptItem>[];
-    for (final snap in results) {
-      for (final doc in snap.docs) {
-        if (seen.add(doc.id)) {
-          merged.add(ReceiptItem.fromMap(doc.id, doc.data()));
-        }
+    final recordsById = <String, FuelRecord>{
+      for (final doc in recordsSnap.docs)
+        doc.id: FuelRecord.fromMap(doc.id, doc.data()),
+    };
+
+    final results = <ReceiptSearchResult>[];
+    for (final doc in itemsSnap.docs) {
+      final item = ReceiptItem.fromMap(doc.id, doc.data());
+      final recordId = doc.reference.parent.parent?.id;
+      final record = recordsById[recordId];
+
+      final pumpName = record?.pumpName ?? '';
+      final preparedByName = record?.totalPreparedByName ?? '';
+      final recordDate = record?.preparedByDate;
+      final totalPreparedByDate = record?.totalPreparedByDate;
+
+      final haystack = [
+        item.driver,
+        item.pe,
+        item.token,
+        item.chassisNo,
+        item.contract,
+        pumpName,
+        preparedByName,
+        recordDate != null ? _dateFormat.format(recordDate) : '',
+        totalPreparedByDate != null
+            ? _dateFormat.format(totalPreparedByDate)
+            : '',
+      ].join(' ').toLowerCase();
+
+      if (haystack.contains(q)) {
+        results.add(ReceiptSearchResult(
+          item: item,
+          pumpName: pumpName,
+          preparedByName: preparedByName,
+          recordDate: recordDate ?? item.createdAt,
+        ));
       }
     }
-    return merged;
+    return results;
   }
 }

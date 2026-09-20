@@ -2,17 +2,16 @@ class FuelRecord {
   final String id;
   final String pumpName;
 
-  // "Prepared By" header block
-  final String preparedByName;
-  final String preparedBySignature;
-  final DateTime preparedByDate; // auto-captured, per the wireframe note
+  // Manually chosen by the user when starting the record (not auto-captured).
+  final DateTime preparedByDate;
 
-  final double openingMeterReading; // mandatory
-  final double closingMeterReading; // mandatory
+  final double openingMeterReading; // mandatory, entered at record start
+  final double? closingMeterReading; // filled in later, at submit time
   final double? openingBalance;     // optional
   final double? closingBalance;     // optional
 
-  // Footer block, filled after all receipt items are added
+  // Footer block, filled after all receipt items are added. This is the
+  // single "Prepared By" signature for the whole record.
   final double? totalQuantitySold;
   final String? totalPreparedByName;
   final String? totalPreparedBySignature;
@@ -25,11 +24,9 @@ class FuelRecord {
   FuelRecord({
     required this.id,
     required this.pumpName,
-    required this.preparedByName,
-    required this.preparedBySignature,
     required this.preparedByDate,
     required this.openingMeterReading,
-    required this.closingMeterReading,
+    this.closingMeterReading,
     this.openingBalance,
     this.closingBalance,
     this.totalQuantitySold,
@@ -43,8 +40,6 @@ class FuelRecord {
 
   Map<String, dynamic> toMap() => {
         'pumpName': pumpName,
-        'preparedByName': preparedByName,
-        'preparedBySignature': preparedBySignature,
         'preparedByDate': preparedByDate.toIso8601String(),
         'openingMeterReading': openingMeterReading,
         'closingMeterReading': closingMeterReading,
@@ -63,12 +58,10 @@ class FuelRecord {
     return FuelRecord(
       id: id,
       pumpName: map['pumpName'] ?? '',
-      preparedByName: map['preparedByName'] ?? '',
-      preparedBySignature: map['preparedBySignature'] ?? '',
       preparedByDate:
           DateTime.tryParse(map['preparedByDate'] ?? '') ?? DateTime.now(),
       openingMeterReading: (map['openingMeterReading'] ?? 0).toDouble(),
-      closingMeterReading: (map['closingMeterReading'] ?? 0).toDouble(),
+      closingMeterReading: map['closingMeterReading']?.toDouble(),
       openingBalance: map['openingBalance']?.toDouble(),
       closingBalance: map['closingBalance']?.toDouble(),
       totalQuantitySold: map['totalQuantitySold']?.toDouble(),
@@ -86,6 +79,7 @@ class FuelRecord {
   }
 
   FuelRecord copyWith({
+    double? closingMeterReading,
     double? totalQuantitySold,
     String? totalPreparedByName,
     String? totalPreparedBySignature,
@@ -96,11 +90,9 @@ class FuelRecord {
     return FuelRecord(
       id: id,
       pumpName: pumpName,
-      preparedByName: preparedByName,
-      preparedBySignature: preparedBySignature,
       preparedByDate: preparedByDate,
       openingMeterReading: openingMeterReading,
-      closingMeterReading: closingMeterReading,
+      closingMeterReading: closingMeterReading ?? this.closingMeterReading,
       openingBalance: openingBalance,
       closingBalance: closingBalance,
       totalQuantitySold: totalQuantitySold ?? this.totalQuantitySold,
