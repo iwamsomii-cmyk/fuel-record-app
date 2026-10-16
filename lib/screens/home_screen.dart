@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'start_record_screen.dart';
 import 'records_list_screen.dart';
 import 'search_screen.dart';
+import 'token_queue_screen.dart';
 import '../services/auth_service.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -51,6 +52,13 @@ class HomeScreen extends StatelessWidget {
                   color: const Color(0xFFDB6E1A),
                   onTap: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const SearchScreen())),
+                ),
+                _HomeTile(
+                  icon: Icons.sync_alt,
+                  label: 'GIMIS Token Queue',
+                  color: const Color(0xFF16A34A),
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const TokenQueueScreen())),
                 ),
               ],
             ),
