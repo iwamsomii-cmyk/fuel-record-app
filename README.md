@@ -1,10 +1,7 @@
-# Sasisho: GIMIS Token Queue + Bot
-Nakili faili hizi juu ya repo yako (zinabadilisha zilizopo, zinaongeza mpya):
-pubspec.yaml, firebase.json, firestore.rules (MPYA), functions/ (MPYA),
-lib/screens/home_screen.dart, lib/screens/token_queue_screen.dart (MPYA), lib/services/firestore_service.dart
-
-Kisha: flutter pub get && flutter build web
-       firebase use gpsa-kinondoni
-       firebase functions:secrets:set GIMIS_USER   (na GIMIS_PASS)
-       (cd functions && npm install)
-       firebase deploy
+# Sasisho 2: Ruhusa (Permit) kabla ya Issue
+Faili: lib/screens/token_queue_screen.dart, firestore.rules, functions/index.js
+1. Weka rules mpya: Console > Firestore > Rules > bandika firestore.rules > Publish
+2. Kwenye Firestore > users > document yako: ongeza field  canPermit (boolean) = true
+3. flutter build web && firebase deploy --only hosting
+4. Bot (Functions): upgrade Blaze, kisha firebase functions:secrets:set GIMIS_USER / GIMIS_PASS,
+   (cd functions && npm install), firebase deploy --only functions
