@@ -32,7 +32,12 @@ async function gql(at, operationName, variables, query) {
 }
 
 async function processAll() {
-  const snap = await db.collection("tokenQueue").where("status", "==", "pending").limit(60).get();
+  const pend = await db.collection("tokenQueue").where("status", "==", "pending").get();
+  for (const d of pend.docs) {                      // zisizoruhusiwa na zimepitwa na muda
+    const e = d.data().expiresAt;
+    if (e && e.toMillis() < Date.now()) await d.ref.update({status: "expired"});
+  }
+  const snap = await db.collection("tokenQueue").where("status", "==", "approved").limit(60).get();
   if (snap.empty) return {done: 0};
   let at;
   try { at = await login(); }               // GIMIS imezima -> subiri mzunguko ujao
@@ -59,7 +64,7 @@ async function processAll() {
     } catch (e) {
       failed++;
       await ref.update({attempts: admin.firestore.FieldValue.increment(1), error: String(e.message).slice(0, 300),
-        status: (t.attempts || 0) >= 4 ? "failed" : "pending"});   // baada ya majaribio 5 -> failed (mtu aangalie)
+        status: (t.attempts || 0) >= 4 ? "failed" : "approved"});   // baada ya majaribio 5 -> failed (mtu aangalie)
     }
   }
   return {issued, failed};
