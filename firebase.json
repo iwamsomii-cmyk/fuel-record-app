@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"gpsa-fuel-record","configurations":{"web":"1:359637317562:web:80b34568e069adb78ecf83"}}}}},"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]}}
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "gpsa-kinondoni",
+          "configurations": {
+            "web": "1:431591431239:web:42e08e761cab2d84a82562"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "runtime": "nodejs20"
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

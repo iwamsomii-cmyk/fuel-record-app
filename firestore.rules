@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function me() { return get(/databases/$(db)/documents/users/$(request.auth.uid)).data; }
+    function approved() { return request.auth != null && me().approved == true; }
+    function canPermit() { return approved() && me().canPermit == true; }
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.approved == false;
+    }
+    match /fuelRecords/{r} {
+      allow read, write: if approved();
+      match /receiptItems/{i} { allow read, write: if approved(); }
+    }
+    match /{path=**}/receiptItems/{i} { allow read: if approved(); }
+    match /tokenQueue/{t} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.status == 'pending';
+      // Ruhusa: pending/failed -> approved, na mabadiliko ya sehemu 3 tu
+      allow update: if canPermit()
+        && resource.data.status in ['pending', 'failed']
+        && request.resource.data.status == 'approved'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'permittedBy', 'permittedAt']);
+      allow delete: if false;
+    }
+  }
+}

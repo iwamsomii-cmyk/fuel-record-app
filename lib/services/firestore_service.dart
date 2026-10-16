@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../models/fuel_record.dart';
 import '../models/receipt_item.dart';
@@ -77,7 +78,26 @@ class FirestoreService {
   // ---------- Receipt items (repeatable table rows) ----------
 
   Future<void> addReceiptItem(String recordId, ReceiptItem item) async {
-    await _receiptItems(recordId).add(item.toMap());
+    final batch = _db.batch();
+    batch.set(_receiptItems(recordId).doc(), item.toMap());
+    // Kila row yenye token + chassis huingia pia kwenye foleni ya GIMIS.
+    // Bot (Cloud Function) ndiyo inayofanya REQUEST & SAVE baadae.
+    if (item.token.trim().isNotEmpty && item.chassisNo.trim().isNotEmpty) {
+      batch.set(_db.collection('tokenQueue').doc(), {
+        'token': item.token.trim(),
+        'chassisNo': item.chassisNo.trim().toUpperCase(),
+        'institution': item.pe,
+        'qty': item.qty,
+        'recordId': recordId,
+        'attendant': FirebaseAuth.instance.currentUser?.email ?? '',
+        'status': 'pending',
+        'attempts': 0,
+        'error': null,
+        'createdAt': Timestamp.now(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+      });
+    }
+    await batch.commit();
   }
 
   Stream<List<ReceiptItem>> watchReceiptItems(String recordId) {
