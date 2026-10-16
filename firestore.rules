@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function approved() {
+      return request.auth != null &&
+        get(/databases/$(db)/documents/users/$(request.auth.uid)).data.approved == true;
+    }
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid && request.resource.data.approved == false;
+    }
+    match /fuelRecords/{r} {
+      allow read, write: if approved();
+      match /receiptItems/{i} { allow read, write: if approved(); }
+    }
+    match /{path=**}/receiptItems/{i} { allow read: if approved(); }   // kwa Search (collectionGroup)
+    match /tokenQueue/{t} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.status == 'pending';
+      allow update, delete: if false;   // bot pekee (Admin SDK)
+    }
+  }
+}
