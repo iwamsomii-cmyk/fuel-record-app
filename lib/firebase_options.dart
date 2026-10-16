@@ -53,11 +53,12 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB2Z3FvJvuQ_udCPMS_8G1BYvtgQO-7NuE',
-    appId: '1:431591431239:web:42e08e761cab2d84a82562',
-    messagingSenderId: '431591431239',
-    projectId: 'gpsa-kinondoni',
-    authDomain: 'gpsa-kinondoni.firebaseapp.com',
-    storageBucket: 'gpsa-kinondoni.firebasestorage.app',
+    apiKey: 'AIzaSyAYb8gbrGsauq87zXG-zT7WUP6Ni3TZIJ0',
+    appId: '1:359637317562:web:80b34568e069adb78ecf83',
+    messagingSenderId: '359637317562',
+    projectId: 'gpsa-fuel-record',
+    authDomain: 'gpsa-fuel-record.firebaseapp.com',
+    storageBucket: 'gpsa-fuel-record.firebasestorage.app',
+    measurementId: 'G-GBMWFD5NPS',
   );
 }
